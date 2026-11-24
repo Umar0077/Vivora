@@ -10,6 +10,7 @@ import '../models/activity_sync_state.dart';
 import '../models/app_usage_entry.dart';
 import '../models/daily_activity_log.dart';
 import '../repositories/activity_repository.dart';
+import 'activity_tracking_controller.dart';
 import 'android_activity_bridge.dart';
 import 'app_category_service.dart';
 
@@ -31,9 +32,11 @@ class ActivitySyncService {
     required String? Function() currentUserId,
     AppCategoryService categoryService = const AppCategoryService(),
     DateTime Function()? clock,
+    ActivityTrackingGate? tracking,
     this.cloudAckTimeout = const Duration(seconds: 15),
     this.readTimeout = const Duration(seconds: 6),
-  }) : _dataSource = dataSource,
+  }) : _tracking = tracking,
+       _dataSource = dataSource,
        _repository = repository,
        _currentUserId = currentUserId,
        _categoryService = categoryService,
@@ -43,8 +46,12 @@ class ActivitySyncService {
     dataSource: AndroidActivityBridge.instance,
     repository: ActivityRepository(),
     currentUserId: () => FirebaseAuth.instance.currentUser?.uid,
+    tracking: ActivityTrackingController.instance,
   );
 
+  /// The "Automatic Activity Tracking" switch. Null only in tests that
+  /// predate it (then everything is allowed, as before).
+  final ActivityTrackingGate? _tracking;
   final ActivityDataSource _dataSource;
   final ActivityRepository _repository;
   final String? Function() _currentUserId;
@@ -74,7 +81,9 @@ class ActivitySyncService {
   String? _uid;
   DateTime? _lastCaptureAt;
   Map<String, AppCategory>? _overrides;
-  String? _latestCaptureId;
+  int _uploadToken = 0;
+  String? _ackedSignature;
+  _AppDetailState? _details;
 
   Future<ActivityPermissionSnapshot> refreshPermissions() async {
     final ActivityPermissionSnapshot snapshot = await _dataSource
@@ -91,7 +100,8 @@ class ActivitySyncService {
 
   Future<bool> requestActivityPermission() async {
     final bool granted = await _dataSource.requestActivityPermission();
-    if (granted) {
+    final String? uid = _currentUserId();
+    if (granted && uid != null && _trackingOn(uid)) {
       await _dataSource.scheduleBackgroundSync();
     }
     await refreshPermissions();
@@ -107,11 +117,110 @@ class ActivitySyncService {
     _uid = uid;
     _overrides = null;
     _lastCaptureAt = null;
-    _latestCaptureId = null;
+    _ackedSignature = null;
+    _details = null;
     today.value = null;
     latestResult.value = null;
     cloudStatus.value = CloudSyncStatus.idle;
     syncState.value = ActivitySyncState.idle;
+  }
+
+  static const String trackingOffMessage =
+      'Activity tracking is turned off in Settings.';
+
+  bool _trackingOn(String uid) => _tracking?.allows(uid) ?? true;
+
+  /// Still the same account, still ON, and not switched off and on again
+  /// since [generation] was read.
+  bool _stillAllowed(String uid, int generation) =>
+      _uid == uid &&
+      _trackingOn(uid) &&
+      (_tracking == null || _tracking.generation == generation);
+
+  /// Called when tracking is switched off: shows the paused state. Data
+  /// already on screen stays as the last recorded values.
+  void showTrackingOff() {
+    _publish(
+      ActivitySyncState.trackingOff,
+      trackingOffMessage,
+      today: today.value,
+    );
+  }
+
+  /// Measures only the parts of [start, end) during which tracking was on
+  /// (all of it when no switch is attached). Null when nothing was tracked.
+  Future<_DayCapture?> _captureTracked(DateTime start, DateTime end) async {
+    final ActivityTrackingGate? gate = _tracking;
+    if (gate == null) {
+      return _DayCapture(
+        await _dataSource.captureActivityRange(start: start, end: end),
+        null,
+      );
+    }
+    final List<(DateTime, DateTime)> ranges = gate.trackedRanges(start, end);
+    if (ranges.isEmpty) return null;
+    final List<ActivityCaptureSnapshot> parts = <ActivityCaptureSnapshot>[
+      for (final (DateTime s, DateTime e) in ranges)
+        await _dataSource.captureActivityRange(start: s, end: e),
+    ];
+    return _DayCapture(mergeCaptures(parts, start, end), ranges);
+  }
+
+  /// Adds up captures of separate (non-overlapping) periods of one day.
+  static ActivityCaptureSnapshot mergeCaptures(
+    List<ActivityCaptureSnapshot> parts,
+    DateTime start,
+    DateTime end,
+  ) {
+    if (parts.length == 1) return parts.single;
+    int? sum(int? Function(ActivityCaptureSnapshot) f) {
+      final List<int> values = parts.map(f).whereType<int>().toList();
+      return values.isEmpty ? null : values.fold<int>(0, (a, b) => a + b);
+    }
+
+    final Map<String, AppUsageEntry> apps = <String, AppUsageEntry>{};
+    for (final ActivityCaptureSnapshot p in parts) {
+      for (final AppUsageEntry e in p.appUsageEntries) {
+        final AppUsageEntry? prev = apps[e.packageName];
+        apps[e.packageName] = prev == null
+            ? e
+            : AppUsageEntry(
+                packageName: e.packageName,
+                appName: e.appName,
+                iconBase64: e.iconBase64 ?? prev.iconBase64,
+                usageMinutes: prev.usageMinutes + e.usageMinutes,
+                foregroundDuration:
+                    prev.foregroundDuration + e.foregroundDuration,
+                lastUsedAt: e.lastUsedAt ?? prev.lastUsedAt,
+                category: e.category,
+                isSystemApp: e.isSystemApp,
+                isLauncher: e.isLauncher,
+              );
+      }
+    }
+    final ActivityCaptureSnapshot last = parts.last;
+    return ActivityCaptureSnapshot(
+      start: start,
+      end: end,
+      usagePermissionGranted: parts.every((p) => p.usagePermissionGranted),
+      activityPermissionGranted: last.activityPermissionGranted,
+      notificationPermissionGranted: last.notificationPermissionGranted,
+      syncStatus: last.syncStatus,
+      appUsageEntries: apps.values.toList(),
+      screenTimeMinutes: sum((p) => p.screenTimeMinutes),
+      appUsageMinutes: sum((p) => p.appUsageMinutes),
+      interactiveScreenTimeSeconds: sum((p) => p.interactiveScreenTimeSeconds),
+      screenOnCount: sum((p) => p.screenOnCount),
+      screenOffCount: sum((p) => p.screenOffCount),
+      phoneUnlockCount: sum((p) => p.phoneUnlockCount),
+      walkingMinutes: sum((p) => p.walkingMinutes),
+      runningMinutes: sum((p) => p.runningMinutes),
+      stillMinutes: sum((p) => p.stillMinutes),
+      vehicleMinutes: sum((p) => p.vehicleMinutes),
+      unknownActivityMinutes: sum((p) => p.unknownActivityMinutes),
+      movementStatus: last.movementStatus,
+      source: last.source,
+    );
   }
 
   /// Automatic sync (start-up, resume, screen open): throttled.
@@ -140,6 +249,14 @@ class ActivitySyncService {
     onUserChanged(uid);
 
     final DateTime now = _clock();
+    // Privacy switch: when OFF nothing is measured or uploaded, whoever asks
+    // (timer, resume, pull-to-refresh, background worker). Previously saved
+    // data is still shown.
+    final int generation = _tracking?.generation ?? 0;
+    if (!_trackingOn(uid)) {
+      unawaited(_loadCachedToday(uid, now));
+      return _publish(ActivitySyncState.trackingOff, trackingOffMessage);
+    }
     final TodayActivity? current = today.value;
     if (!force &&
         current != null &&
@@ -162,13 +279,34 @@ class ActivitySyncService {
         );
       }
 
+      final ActivitySyncMetadata metadata = await _dataSource.getSyncMetadata();
+      await _closePreviousDay(uid, now, metadata, generation);
+      if (_uid != uid) {
+        return _publish(ActivitySyncState.idle, 'Account changed.');
+      }
+      if (!_stillAllowed(uid, generation)) {
+        return _publish(ActivitySyncState.trackingOff, trackingOffMessage);
+      }
+
       final ActivityDateRange day = ActivityDateUtils.currentDayRange(now);
-      final ActivityCaptureSnapshot capture = await _dataSource
-          .captureActivityRange(start: day.start, end: day.end);
+      final _DayCapture? measured = await _captureTracked(day.start, day.end);
       if (_uid != uid) {
         // The account changed while the device was being read.
         return _publish(ActivitySyncState.idle, 'Account changed.');
       }
+      if (!_stillAllowed(uid, generation)) {
+        // Switched OFF while the phone was being read: discard the result.
+        return _publish(ActivitySyncState.trackingOff, trackingOffMessage);
+      }
+      if (measured == null) {
+        return _publish(
+          syncState.value == ActivitySyncState.syncing
+              ? ActivitySyncState.idle
+              : syncState.value,
+          'Tracking has just started; the first measurement follows shortly.',
+        );
+      }
+      final ActivityCaptureSnapshot capture = measured.capture;
       if (!capture.usagePermissionGranted) {
         return _publish(
           ActivitySyncState.permissionRequired,
@@ -177,13 +315,13 @@ class ActivitySyncService {
       }
 
       final Map<String, AppCategory> overrides = await _loadOverrides(uid);
-      final List<AppUsageEntry> apps = _categoryService.categorizeEntries(
-        capture.appUsageEntries,
-        overrides: overrides,
-      )..sort((a, b) => b.foregroundDuration.compareTo(a.foregroundDuration));
-
-      final ActivitySyncMetadata metadata = await _dataSource.getSyncMetadata();
-      final String captureId = now.millisecondsSinceEpoch.toString();
+      final List<AppUsageEntry> apps = _categorize(capture, overrides);
+      final bool writeDetails = _needsAppDetails(uid, day.start, apps, now);
+      // The day document's captureId names the per-app documents that belong
+      // to it, so it only changes when those are rewritten (see _upload).
+      final String captureId = writeDetails
+          ? now.millisecondsSinceEpoch.toString()
+          : _details!.captureId;
       final DailyActivityLog log = buildDailyLog(
         capture: capture,
         apps: apps,
@@ -191,12 +329,13 @@ class ActivitySyncService {
         captureId: captureId,
         syncedAt: now,
         collectionStartedAt: metadata.collectionStartedAt ?? now,
+        trackedRanges: measured.ranges,
+        dayEnd: now,
       );
 
       final TodayActivity todayActivity = TodayActivity(log: log, apps: apps);
       today.value = todayActivity;
       _lastCaptureAt = now;
-      _latestCaptureId = captureId;
 
       await _dataSource.saveSyncMetadata(
         metadata.copyWith(
@@ -224,7 +363,10 @@ class ActivitySyncService {
         today: todayActivity,
       );
 
-      await _upload(uid, todayActivity);
+      // Last check right before the write: no upload after switching OFF.
+      if (_stillAllowed(uid, generation)) {
+        await _upload(uid, todayActivity, writeDetails: writeDetails);
+      }
       return result;
     } on PlatformException catch (error) {
       return _publish(
@@ -249,7 +391,23 @@ class ActivitySyncService {
     required String captureId,
     required DateTime syncedAt,
     DateTime? collectionStartedAt,
+
+    /// The parts of the day that were measured (tracking switched on), or
+    /// null when tracking periods are not recorded (whole day measured).
+    List<(DateTime, DateTime)>? trackedRanges,
+
+    /// End of the period this capture covers (now for today).
+    DateTime? dayEnd,
   }) {
+    final DateTime coverageEnd = dayEnd ?? ActivityDateUtils.nextDayStart(date);
+    final int? trackedMinutes = trackedRanges?.fold<int>(
+      0,
+      (int sum, (DateTime, DateTime) r) =>
+          sum + r.$2.difference(r.$1).inMinutes,
+    );
+    final int coverageMinutes = coverageEnd
+        .difference(ActivityDateUtils.dayStart(date))
+        .inMinutes;
     int minutesFor(AppCategory category) {
       final int millis = apps
           .where((AppUsageEntry entry) => entry.category == category)
@@ -288,48 +446,184 @@ class ActivitySyncService {
       source: capture.source,
       syncStatus: capture.syncStatus,
       appSummary: apps,
+      trackedMinutes: trackedMinutes,
+      // Whole period measured (1 min tolerance for clock rounding)?
+      trackingComplete: switch (trackedMinutes) {
+        null => null,
+        final int m => m >= coverageMinutes - 1,
+      },
+      trackedRanges: trackedRanges,
     );
   }
 
-  Future<void> _upload(String uid, TodayActivity data) async {
-    final String? captureId = data.log.captureId;
+  /// Per-app documents carry app icons, so rewriting all of them every few
+  /// minutes would waste bandwidth and Firestore writes. They are rewritten
+  /// when the set of apps changes, at most every [appDetailInterval]
+  /// otherwise, and on a day's closing pass. In between, the day document's
+  /// `appSummary` (compact, no icons) carries the fresh per-app minutes.
+  static const Duration appDetailInterval = Duration(minutes: 30);
+
+  bool _needsAppDetails(
+    String uid,
+    DateTime day,
+    List<AppUsageEntry> apps,
+    DateTime now,
+  ) {
+    final _AppDetailState? d = _details;
+    return d == null ||
+        d.uid != uid ||
+        !ActivityDateUtils.isSameDay(d.day, day) ||
+        now.difference(d.writtenAt) >= appDetailInterval ||
+        now.isBefore(d.writtenAt) ||
+        !setEquals(d.packages, apps.map((a) => a.packageName).toSet());
+  }
+
+  List<AppUsageEntry> _categorize(
+    ActivityCaptureSnapshot capture,
+    Map<String, AppCategory> overrides,
+  ) => _categoryService.categorizeEntries(
+    capture.appUsageEntries,
+    overrides: overrides,
+  )..sort((a, b) => b.foregroundDuration.compareTo(a.foregroundDuration));
+
+  /// When the last capture was on an earlier day, that day's final minutes
+  /// (e.g. 23:57-24:00) were never uploaded. Recapture the whole of that day
+  /// once and replace its record. Only for this install's own last account,
+  /// only within the last 3 days, and never with a capture lacking Usage
+  /// Access (which would read as zero).
+  Future<void> _closePreviousDay(
+    String uid,
+    DateTime now,
+    ActivitySyncMetadata metadata,
+    int generation,
+  ) async {
+    final DateTime? last =
+        _lastCaptureAt ??
+        (metadata.lastSyncedUserId == uid
+            ? metadata.lastSuccessfulActivitySync
+            : null);
+    if (last == null || ActivityDateUtils.isSameDay(last, now)) return;
+    final DateTime lastDay = ActivityDateUtils.dayStart(last);
+    if (lastDay.isAfter(now) ||
+        ActivityDateUtils.dayStart(now).difference(lastDay).inDays > 3) {
+      return;
+    }
+    try {
+      // Only the parts of that day during which tracking was on.
+      final _DayCapture? measured = await _captureTracked(
+        lastDay,
+        ActivityDateUtils.nextDayStart(lastDay),
+      );
+      if (measured == null) return;
+      final ActivityCaptureSnapshot capture = measured.capture;
+      if (_uid != uid ||
+          !_stillAllowed(uid, generation) ||
+          !capture.usagePermissionGranted ||
+          capture.appUsageMinutes == null) {
+        return;
+      }
+      final List<AppUsageEntry> apps = _categorize(
+        capture,
+        await _loadOverrides(uid),
+      );
+      final DailyActivityLog log = buildDailyLog(
+        capture: capture,
+        apps: apps,
+        date: lastDay,
+        captureId: '${now.millisecondsSinceEpoch}_final',
+        syncedAt: now,
+        collectionStartedAt: metadata.collectionStartedAt,
+        trackedRanges: measured.ranges,
+      );
+      final Future<void> write = _repository.upsertDailyActivityLog(
+        uid: uid,
+        log: log,
+        appUsageEntries: apps,
+      );
+      // Queued offline by Firestore if there is no connection.
+      await write.timeout(cloudAckTimeout, onTimeout: () {});
+    } catch (error) {
+      debugPrint('Closing pass for the previous day failed: $error');
+    }
+  }
+
+  Future<void> _upload(
+    String uid,
+    TodayActivity data, {
+    bool writeDetails = true,
+  }) async {
+    final int token = ++_uploadToken;
+    final String signature = _signature(uid, data.log);
+    if (signature == _ackedSignature) {
+      // Identical to what the server already confirmed: nothing to write.
+      _setCloudStatus(token, CloudSyncState.synced);
+      return;
+    }
     cloudStatus.value = CloudSyncStatus(CloudSyncState.uploading, at: _clock());
     final Future<void> write = _repository.upsertDailyActivityLog(
       uid: uid,
       log: data.log,
-      appUsageEntries: data.apps,
+      appUsageEntries: writeDetails ? data.apps : const <AppUsageEntry>[],
     );
+    if (writeDetails) {
+      _details = _AppDetailState(
+        uid: uid,
+        day: data.log.date,
+        captureId: data.log.captureId ?? '',
+        packages: data.apps.map((a) => a.packageName).toSet(),
+        writtenAt: data.log.lastSyncAt ?? _clock(),
+      );
+    }
+    void acked() {
+      _ackedSignature = signature;
+      _setCloudStatus(token, CloudSyncState.synced);
+    }
+
     try {
       await write.timeout(cloudAckTimeout);
-      _setCloudStatus(captureId, CloudSyncState.synced);
+      acked();
     } on TimeoutException {
       // Firestore keeps the batch in its offline queue and retries it; report
       // the honest state now and flip to synced if the server acknowledges it.
       _setCloudStatus(
-        captureId,
+        token,
         CloudSyncState.pendingOffline,
         'No response from Firestore within ${cloudAckTimeout.inSeconds}s. '
         'Data is kept on this device and will upload when online.',
       );
       unawaited(
         write.then(
-          (_) => _setCloudStatus(captureId, CloudSyncState.synced),
-          onError: (Object error) =>
-              _setCloudStatus(captureId, _classify(error), '$error'),
+          (_) => acked(),
+          onError: (Object error) {
+            _details = null;
+            _setCloudStatus(token, _classify(error), '$error');
+          },
         ),
       );
     } catch (error) {
-      _setCloudStatus(captureId, _classify(error), '$error');
+      // Nothing was stored: rewrite the per-app documents next time.
+      _details = null;
+      _setCloudStatus(token, _classify(error), '$error');
     }
   }
 
-  void _setCloudStatus(
-    String? captureId,
-    CloudSyncState state, [
-    String? message,
-  ]) {
-    // Ignore late results for an older capture.
-    if (captureId != _latestCaptureId) {
+  /// Everything that would be written, minus fields that change on every
+  /// capture without changing the data (sync time, capture id).
+  static String _signature(String uid, DailyActivityLog log) {
+    final Map<String, dynamic> map = log.toMap()
+      ..remove('lastSyncAt')
+      ..remove('captureId')
+      ..remove('updatedAt')
+      // Coverage grows with the clock even when nothing was used; it is
+      // written along with the next real change.
+      ..remove('trackedMinutes')
+      ..remove('trackedRanges');
+    return '$uid|${log.documentId}|$map';
+  }
+
+  void _setCloudStatus(int token, CloudSyncState state, [String? message]) {
+    // Ignore late results for an older upload.
+    if (token != _uploadToken) {
       return;
     }
     cloudStatus.value = CloudSyncStatus(state, message: message, at: _clock());
@@ -405,9 +699,13 @@ class ActivitySyncService {
             current.log.captureId ?? '${_clock().millisecondsSinceEpoch}',
         syncedAt: current.log.lastSyncAt ?? _clock(),
         collectionStartedAt: current.log.collectionStartedAt,
+        trackedRanges: current.log.trackedRanges,
+        dayEnd: current.log.lastSyncAt,
       );
       today.value = TodayActivity(log: log, apps: apps);
-      unawaited(_upload(uid, today.value!));
+      // Re-categorising is not new measurement, but uploads still respect
+      // the switch.
+      if (_trackingOn(uid)) unawaited(_upload(uid, today.value!));
     }
     try {
       await _repository
@@ -458,7 +756,7 @@ class ActivitySyncService {
         return;
       }
       final List<AppUsageEntry> apps = await _repository
-          .getDailyAppUsage(uid: uid, date: now, captureId: log.captureId)
+          .getDailyApps(uid: uid, log: log)
           .timeout(readTimeout);
       if (today.value == null && _uid == uid) {
         today.value = TodayActivity(log: log, apps: apps);
@@ -484,4 +782,29 @@ class ActivitySyncService {
     syncState.value = state;
     return result;
   }
+}
+
+/// Which per-app documents were last written for a day.
+class _AppDetailState {
+  const _AppDetailState({
+    required this.uid,
+    required this.day,
+    required this.captureId,
+    required this.packages,
+    required this.writtenAt,
+  });
+
+  final String uid;
+  final DateTime day;
+  final String captureId;
+  final Set<String> packages;
+  final DateTime writtenAt;
+}
+
+class _DayCapture {
+  const _DayCapture(this.capture, this.ranges);
+  final ActivityCaptureSnapshot capture;
+
+  /// Measured periods, or null when no tracking switch is attached.
+  final List<(DateTime, DateTime)>? ranges;
 }

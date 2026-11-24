@@ -104,6 +104,49 @@ class ActivityRepository {
     );
   }
 
+  /// The apps of a stored day, with the freshest minutes available.
+  ///
+  /// The day document's compact `appSummary` is rewritten on every sync, while
+  /// the per-app documents (which carry icons) are rewritten less often. So
+  /// minutes come from `appSummary` and only icons from the per-app
+  /// documents. Days stored before `appSummary` existed use the per-app
+  /// documents for everything, as before.
+  Future<List<AppUsageEntry>> getDailyApps({
+    required String uid,
+    required DailyActivityLog log,
+  }) async {
+    final List<AppUsageEntry> details = await getDailyAppUsage(
+      uid: uid,
+      date: log.date,
+      captureId: log.appSummary == null ? log.captureId : null,
+    );
+    final List<AppUsageEntry>? summary = log.appSummary;
+    if (summary == null) return details;
+    return mergeIcons(summary, details);
+  }
+
+  /// [summary] entries (with real usage, longest first) with icons taken from
+  /// [details] where available.
+  static List<AppUsageEntry> mergeIcons(
+    List<AppUsageEntry> summary,
+    List<AppUsageEntry> details,
+  ) {
+    final Map<String, String> icons = <String, String>{
+      for (final AppUsageEntry d in details)
+        if (d.iconBase64 != null) d.packageName: d.iconBase64!,
+    };
+    return summary
+        .where((AppUsageEntry e) => e.foregroundDuration > Duration.zero)
+        .map(
+          (AppUsageEntry e) =>
+              e.iconBase64 == null && icons[e.packageName] != null
+              ? e.withIcon(icons[e.packageName]!)
+              : e,
+        )
+        .toList()
+      ..sort((a, b) => b.foregroundDuration.compareTo(a.foregroundDuration));
+  }
+
   /// Keeps only entries from [captureId] with real usage, longest first. When
   /// the day has no capture id (written by an older build), every entry with
   /// usage is kept, since there is no way to tell stale ones apart.

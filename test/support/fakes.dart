@@ -41,7 +41,7 @@ class FakeDataSource implements ActivityDataSource {
   }) : apps =
            apps ??
            <AppUsageEntry>[
-             app('com.example.vivora', 'Vivora', const Duration(minutes: 22)),
+             app('com.example.vivora', 'Personal Digital Twin', const Duration(minutes: 22)),
              app(
                'com.google.android.youtube',
                'YouTube',
@@ -55,6 +55,15 @@ class FakeDataSource implements ActivityDataSource {
   int? screenTimeMinutes;
   int? appUsageMinutes;
   int captureCalls = 0;
+
+  /// Holds a capture "in progress" (slow device read).
+  Completer<void>? captureGate;
+
+  /// Makes the next captures fail like a platform error.
+  Object? captureError;
+
+  /// Start of every captured range (one per day captured).
+  final List<DateTime> capturedDays = <DateTime>[];
   ActivitySyncMetadata metadata = const ActivitySyncMetadata();
 
   @override
@@ -63,6 +72,9 @@ class FakeDataSource implements ActivityDataSource {
     required DateTime end,
   }) async {
     captureCalls++;
+    capturedDays.add(start);
+    if (captureGate != null) await captureGate!.future;
+    if (captureError != null) throw captureError!;
     return ActivityCaptureSnapshot(
       start: start,
       end: end,
@@ -110,6 +122,10 @@ class FakeActivityRepository implements ActivityRepository {
   Object? writeError;
   int writes = 0;
 
+  /// Per-app documents written by the last upsert.
+  int lastAppDocsWritten = 0;
+  final List<String> writtenDays = <String>[];
+
   @override
   Future<void> upsertDailyActivityLog({
     required String uid,
@@ -117,6 +133,8 @@ class FakeActivityRepository implements ActivityRepository {
     required List<AppUsageEntry> appUsageEntries,
   }) async {
     writes++;
+    lastAppDocsWritten = appUsageEntries.length;
+    writtenDays.add('$uid/${log.documentId}');
     // Like Firestore, the local cache is updated immediately.
     logs['$uid/${log.documentId}'] = log;
     final Map<String, AppUsageEntry> day = appUsage.putIfAbsent(
@@ -152,6 +170,21 @@ class FakeActivityRepository implements ActivityRepository {
         .expand((e) => e.value.values)
         .toList();
     return ActivityRepository.filterCurrentCapture(all, captureId);
+  }
+
+  @override
+  Future<List<AppUsageEntry>> getDailyApps({
+    required String uid,
+    required DailyActivityLog log,
+  }) async {
+    final List<AppUsageEntry> details = await getDailyAppUsage(
+      uid: uid,
+      date: log.date,
+      captureId: log.appSummary == null ? log.captureId : null,
+    );
+    return log.appSummary == null
+        ? details
+        : ActivityRepository.mergeIcons(log.appSummary!, details);
   }
 
   @override

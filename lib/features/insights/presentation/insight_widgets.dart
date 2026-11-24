@@ -51,7 +51,7 @@ class RecommendationsCard extends StatelessWidget {
             )
           else if (recommendations.isEmpty)
             Text(
-              'No suggestions yet. They appear once Vivora has recorded your app usage, scores or focus sessions.',
+              'No suggestions yet. They appear once Personal Digital Twin has recorded your app usage, scores or focus sessions.',
               style: TextStyle(color: context.palette.textSecondary),
             )
           else

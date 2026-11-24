@@ -31,6 +31,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/android/build/
 /coverage/
 
 # Symbolication related
@@ -43,3 +44,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local emulator automation and sample-account fixture (not app source)
+/tool/emulator_*.cjs
+/tool/seed_emulator_fixture.dart
+
+# Never publish packaged credentials, signing material or local secrets
+*.apk
+*.aab
+*.jks
+*.keystore
+.env
+.env.*
+!*.example

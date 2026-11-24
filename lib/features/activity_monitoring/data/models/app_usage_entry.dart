@@ -50,7 +50,11 @@ class AppUsageEntry {
   final bool categoryIsUserOverride;
   final String? captureId;
 
-  String get displayName => appName.isNotEmpty ? appName : packageName;
+  String get displayName => packageName == 'com.example.vivora'
+      ? 'Personal Digital Twin'
+      : appName.isNotEmpty
+      ? appName
+      : packageName;
 
   /// "1h 05m", "12m" or "<1m" for real but short usage.
   String get durationLabel => formatUsageDuration(foregroundDuration);
@@ -94,11 +98,12 @@ class AppUsageEntry {
     AppCategory? category,
     bool? categoryIsUserOverride,
     String? captureId,
+    String? iconBase64,
   }) {
     return AppUsageEntry(
       packageName: packageName,
       appName: appName,
-      iconBase64: iconBase64,
+      iconBase64: iconBase64 ?? this.iconBase64,
       usageMinutes: usageMinutes,
       foregroundDuration: foregroundDuration,
       lastUsedAt: lastUsedAt,
@@ -110,6 +115,8 @@ class AppUsageEntry {
       captureId: captureId ?? this.captureId,
     );
   }
+
+  AppUsageEntry withIcon(String icon) => copyWith(iconBase64: icon);
 
   AppUsageEntry withCategory(
     AppCategory category, {

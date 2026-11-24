@@ -49,7 +49,7 @@ class _GoalsStepState extends State<GoalsStep> {
           FadeInDown(
             delay: const Duration(milliseconds: 100),
             child: Text(
-              'What do you want to achieve with Vivora?',
+              'What do you want to achieve with Personal Digital Twin?',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: context.palette.textSecondary,
               ),
@@ -154,17 +154,21 @@ class _GoalsStepState extends State<GoalsStep> {
   }
 
   Widget _buildSliderLabel(String label, String value) {
+    // The label wraps instead of pushing the value off screen with large text.
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: context.palette.textPrimary,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: context.palette.textPrimary,
+            ),
           ),
         ),
+        const SizedBox(width: 12),
         Text(
           value,
           style: TextStyle(

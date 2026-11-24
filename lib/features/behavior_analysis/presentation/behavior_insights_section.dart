@@ -86,7 +86,7 @@ class _PeriodView extends StatelessWidget {
         if (!analysis.hasAnyData)
           const _Empty(
             'Keep logging your activities to unlock behavior insights. '
-            'Patterns appear once Vivora has a few days of logs or measured phone usage.',
+            'Patterns appear once Personal Digital Twin has a few days of logs or measured phone usage.',
           )
         else if (analysis.habits.isEmpty)
           _Empty(

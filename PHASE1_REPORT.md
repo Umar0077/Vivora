@@ -101,7 +101,7 @@ dangling sessions with no terminal event, which are then handled explicitly.
 - Device `screen-interactive` aggregation today = **1:08:04** (68.07 min).
 - The app's `interactiveScreenTimeMinutes` recomputes to 70.8 min (window 00:00→06:20).
 - Digital Wellbeing's headline ≈ **45 min**, which equals the SUM of non-launcher, non-system
-  app foreground durations (YouTube 11.3 + WhatsApp 5.3 + Vivora 22.05 + Deskclock 3.2 +
+  app foreground durations (YouTube 11.3 + WhatsApp 5.3 + Personal Digital Twin 22.05 + Deskclock 3.2 +
   Settings 2.2 + Wellbeing 2.0 ≈ 46.9).
 
 So `SCREEN_INTERACTIVE` time includes the launcher, the lock screen and idle "screen on but no

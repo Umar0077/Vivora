@@ -11,6 +11,7 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../activity_monitoring/data/models/app_usage_entry.dart';
 import '../../analytics/data/analytics_calculator.dart';
+import '../../reminders/reminder_service.dart';
 import '../data/focus_session_repository.dart';
 
 /// Pomodoro-style focus timer. Elapsed time is computed from wall-clock
@@ -96,6 +97,9 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
       _startedAt ??= now;
       _runningSince = now;
     });
+    // Optional "session complete" notification (Settings > Reminders), for
+    // when the app is in the background as the timer ends.
+    unawaited(ReminderService.instance.onFocusRunning(now.add(_remaining)));
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -109,6 +113,7 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
 
   void _pause() {
     _ticker?.cancel();
+    unawaited(ReminderService.instance.onFocusStopped());
     setState(() {
       _accumulated = _elapsed;
       _runningSince = null;
@@ -118,6 +123,7 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
 
   Future<void> _finish({required bool completed}) async {
     _ticker?.cancel();
+    unawaited(ReminderService.instance.onFocusStopped());
     final Duration focused = completed
         ? Duration(minutes: _plannedMinutes)
         : _elapsed;

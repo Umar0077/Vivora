@@ -45,7 +45,7 @@ class _PreferencesStepState extends State<PreferencesStep> {
                   FadeInDown(
                     delay: const Duration(milliseconds: 100),
                     child: Text(
-                      'Customize how Vivora interacts with you.',
+                      'Customize how Personal Digital Twin interacts with you.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: context.palette.textSecondary,
                       ),

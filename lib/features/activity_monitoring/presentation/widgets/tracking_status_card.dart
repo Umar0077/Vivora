@@ -9,18 +9,31 @@ import '../../data/models/activity_sync_state.dart';
 import '../../data/models/app_usage_entry.dart';
 import '../../data/models/daily_activity_log.dart';
 import '../../data/services/activity_sync_service.dart';
+import '../../data/services/activity_tracking_controller.dart';
 
 /// Tracking status, today's device metrics and sync/cloud state.
 ///
 /// Reads everything from [ActivitySyncService] notifiers so every screen that
 /// embeds it shows the same snapshot.
 class TrackingStatusCard extends StatelessWidget {
-  TrackingStatusCard({super.key, ActivitySyncService? service})
-    : service = service ?? ActivitySyncService.instance;
+  TrackingStatusCard({
+    super.key,
+    ActivitySyncService? service,
+    ActivityTrackingController? tracking,
+    this.now,
+  }) : service = service ?? ActivitySyncService.instance,
+       tracking = tracking ?? ActivityTrackingController.instance;
 
   final ActivitySyncService service;
 
+  /// The Settings switch; when OFF the card shows paused, last recorded data.
+  final ActivityTrackingController tracking;
+
+  /// Clock for the "x min ago" text; injectable for tests.
+  final DateTime Function()? now;
+
   Listenable get _listenable => Listenable.merge(<Listenable>[
+    tracking,
     service.syncState,
     service.permissions,
     service.today,
@@ -58,32 +71,25 @@ class TrackingStatusCard extends StatelessWidget {
     await service.syncNow(force: true);
   }
 
-  Future<void> _syncNow(BuildContext context) async {
-    final ActivitySyncResult result = await service.syncNow(force: true);
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${result.message} ${service.cloudStatus.value.label}.'),
-      ),
-    );
-  }
-
   Widget _build(BuildContext context) {
     final ActivitySyncState syncState = service.syncState.value;
     final ActivityPermissionSnapshot permissions = service.permissions.value;
     final TodayActivity? today = service.today.value;
     final DailyActivityLog? log = today?.log;
     final CloudSyncStatus cloud = service.cloudStatus.value;
-    final bool needsUsage = !permissions.usageAccessGranted;
-    final bool needsActivity = !permissions.activityPermissionGranted;
+    final bool trackingOff = !tracking.isEnabled;
+    // Permission prompts only matter while tracking is on.
+    final bool needsUsage = !trackingOff && !permissions.usageAccessGranted;
+    final bool needsActivity =
+        !trackingOff && !permissions.activityPermissionGranted;
     final bool isSyncing = syncState == ActivitySyncState.syncing;
     final String? error = syncState == ActivitySyncState.failed
         ? service.latestResult.value?.message
         : null;
 
-    final Color accent = needsUsage
+    final Color accent = trackingOff
+        ? context.palette.textSecondary
+        : needsUsage
         ? Colors.orange
         : syncState == ActivitySyncState.failed
         ? context.palette.danger
@@ -120,11 +126,34 @@ class TrackingStatusCard extends StatelessWidget {
           const SizedBox(height: 8),
           // Own line: sharing the title's row squeezed the title until it
           // broke between letters ("Automati c Tracki…").
-          _StatusChip(label: _statusLabel(syncState, needsUsage)),
+          _StatusChip(
+            label: trackingOff ? 'Paused' : _statusLabel(syncState, needsUsage),
+          ),
+          if (trackingOff && log != null) ...<Widget>[
+            const SizedBox(height: 10),
+            Text(
+              'Showing the last recorded values. Nothing new is measured while tracking is off.',
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ] else if (!trackingOff &&
+              log != null &&
+              log.isPartiallyTracked) ...<Widget>[
+            const SizedBox(height: 10),
+            Text(
+              'Today is only partly measured: tracking was off for part of the day.',
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           if (needsUsage) ...<Widget>[
             Text(
-              'Allow Usage Access so Vivora can measure screen time and app usage on this phone.',
+              'Allow Usage Access so Personal Digital Twin can measure screen time and app usage on this phone.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: context.palette.textSecondary,
                 height: 1.45,
@@ -134,12 +163,16 @@ class TrackingStatusCard extends StatelessWidget {
           ],
           _TrackingRow(
             label: 'Usage Access',
-            value: needsUsage ? 'Required' : 'Enabled',
+            value: permissions.usageAccessGranted
+                ? 'Enabled'
+                : trackingOff
+                ? 'Not allowed'
+                : 'Required',
           ),
           const SizedBox(height: 10),
           _TrackingRow(
             label: 'Physical Activity',
-            value: needsActivity
+            value: !permissions.activityPermissionGranted
                 ? 'Not allowed'
                 : permissions.backgroundSyncEnabled
                 ? 'Enabled'
@@ -172,7 +205,7 @@ class TrackingStatusCard extends StatelessWidget {
           _TrackingRow(label: 'Movement', value: movementLabel(log)),
           const SizedBox(height: 10),
           _TrackingRow(
-            label: 'Last device sync',
+            label: trackingOff ? 'Last recorded' : 'Last device sync',
             value: _formatTime(log?.lastSyncAt),
           ),
           const SizedBox(height: 10),
@@ -185,33 +218,33 @@ class TrackingStatusCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 18),
-          if (needsUsage)
+          _AutoSyncLine(
+            text: autoSyncStatus(
+              trackingOff: trackingOff,
+              syncState: syncState,
+              needsUsage: needsUsage,
+              cloud: cloud.state,
+              lastSyncAt: log?.lastSyncAt,
+              now: (now ?? DateTime.now)(),
+              use24h: MediaQuery.alwaysUse24HourFormatOf(context),
+            ),
+            busy: isSyncing,
+          ),
+          if (needsUsage) ...<Widget>[
+            const SizedBox(height: 14),
             PrimaryButton(
               label: 'Enable Usage Access',
               onPressed: () => _enableTracking(context),
               icon: Icons.security_rounded,
               isLoading: isSyncing,
-            )
-          else
-            Row(
-              children: <Widget>[
-                if (needsActivity) ...<Widget>[
-                  Expanded(
-                    child: SecondaryButton(
-                      label: 'Allow Activity',
-                      onPressed: () => _enableTracking(context),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                Expanded(
-                  child: SecondaryButton(
-                    label: isSyncing ? 'Syncing…' : 'Sync Now',
-                    onPressed: isSyncing ? null : () => _syncNow(context),
-                  ),
-                ),
-              ],
             ),
+          ] else if (needsActivity) ...<Widget>[
+            const SizedBox(height: 14),
+            SecondaryButton(
+              label: 'Allow Activity',
+              onPressed: () => _enableTracking(context),
+            ),
+          ],
         ],
       ),
     );
@@ -266,6 +299,8 @@ class TrackingStatusCard extends StatelessWidget {
         return 'Error';
       case ActivitySyncState.permissionRequired:
         return 'Permission required';
+      case ActivitySyncState.trackingOff:
+        return 'Paused';
       case ActivitySyncState.idle:
         return 'Waiting';
       case ActivitySyncState.success:
@@ -361,6 +396,102 @@ class _StatusChip extends StatelessWidget {
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
+      ),
+    );
+  }
+}
+
+/// One honest sentence about automatic syncing, derived from the real state:
+/// never "updated" when the device read or the upload failed.
+String autoSyncStatus({
+  bool trackingOff = false,
+  required ActivitySyncState syncState,
+  required bool needsUsage,
+  required CloudSyncState cloud,
+  required DateTime? lastSyncAt,
+  required DateTime now,
+  bool use24h = true,
+}) {
+  if (trackingOff || syncState == ActivitySyncState.trackingOff) {
+    return 'Activity tracking is turned off in Settings.';
+  }
+  if (needsUsage || syncState == ActivitySyncState.permissionRequired) {
+    return 'Waiting for Usage Access permission. Updates start automatically once it is allowed.';
+  }
+  if (syncState == ActivitySyncState.syncing) {
+    return 'Updating activity…';
+  }
+  if (syncState == ActivitySyncState.failed) {
+    return 'Could not read activity from this phone. Personal Digital Twin will try again automatically.';
+  }
+  switch (cloud) {
+    case CloudSyncState.pendingOffline:
+      return 'Offline. Activity is saved on this phone and uploads when you are back online.';
+    case CloudSyncState.permissionDenied:
+    case CloudSyncState.unauthenticated:
+      return 'Could not upload activity. Please sign in again.';
+    case CloudSyncState.failed:
+      return 'Upload failed. Personal Digital Twin will try again automatically.';
+    case CloudSyncState.idle:
+    case CloudSyncState.uploading:
+    case CloudSyncState.synced:
+      break;
+  }
+  if (lastSyncAt == null) {
+    return 'Activity updates automatically.';
+  }
+  final DateTime t = lastSyncAt.toLocal();
+  final String hhmm = use24h
+      ? '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'
+      : '${t.hour % 12 == 0 ? 12 : t.hour % 12}:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'AM' : 'PM'}';
+  final int minutes = now.difference(lastSyncAt).inMinutes;
+  final String ago = minutes < 1
+      ? 'just now'
+      : minutes < 60
+      ? '$minutes min ago'
+      : 'at $hhmm';
+  final String when = minutes < 60 ? '$hhmm ($ago)' : ago;
+  return 'Updates automatically every 5 minutes while Personal Digital Twin is open. Last updated $when.';
+}
+
+class _AutoSyncLine extends StatelessWidget {
+  const _AutoSyncLine({required this.text, required this.busy});
+
+  final String text;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: busy
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: context.brand,
+                    ),
+                  )
+                : Icon(Icons.autorenew_rounded, size: 18, color: context.brand),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -78,6 +78,26 @@ class HistoryData {
     return null;
   }
 
+  /// The same history seen from the end of [day]: records after that day are
+  /// left out, so the engine can analyse a past day exactly like "today".
+  HistoryData asOf(DateTime day) {
+    final String key = ActivityDateUtils.dayKey(day);
+    bool upTo(DateTime d) => ActivityDateUtils.dayKey(d).compareTo(key) <= 0;
+    return HistoryData(
+      today: DateTime(day.year, day.month, day.day, 23, 59, 59),
+      activityLogs: activityLogs.where((l) => upTo(l.date)).toList(),
+      appUsageByDay: <String, List<AppUsageEntry>>{
+        for (final MapEntry<String, List<AppUsageEntry>> e
+            in appUsageByDay.entries)
+          if (e.key.compareTo(key) <= 0) e.key: e.value,
+      },
+      scores: scores.where((s) => upTo(s.date)).toList(),
+      focusSessions: focusSessions.where((s) => upTo(s.startedAt)).toList(),
+      goals: goals,
+      categoryOverrides: categoryOverrides,
+    );
+  }
+
   HistoryData withToday({DailyActivityLog? log, List<AppUsageEntry>? apps}) {
     if (log == null) {
       return this;

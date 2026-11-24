@@ -8,6 +8,12 @@ class GreetingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final DateTime now = DateTime.now();
+    final String greeting = now.hour < 12
+        ? 'Good morning'
+        : now.hour < 18
+        ? 'Good afternoon'
+        : 'Good evening';
     final String weekday = <String>[
       'Mon',
       'Tue',
@@ -16,7 +22,7 @@ class GreetingHeader extends StatelessWidget {
       'Fri',
       'Sat',
       'Sun',
-    ][DateTime.now().weekday - 1];
+    ][now.weekday - 1];
     final String month = <String>[
       'Jan',
       'Feb',
@@ -30,8 +36,8 @@ class GreetingHeader extends StatelessWidget {
       'Oct',
       'Nov',
       'Dec',
-    ][DateTime.now().month - 1];
-    final String dateText = '$weekday, ${DateTime.now().day} $month';
+    ][now.month - 1];
+    final String dateText = '$weekday, ${now.day} $month';
 
     return Row(
       children: <Widget>[
@@ -40,7 +46,7 @@ class GreetingHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Good Morning, $name',
+                '$greeting, $name',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: context.palette.textPrimary,

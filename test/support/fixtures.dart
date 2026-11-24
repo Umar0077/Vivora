@@ -13,7 +13,7 @@ import 'package:vivora/features/productivity_scoring/data/models/productivity_mo
 
 import 'fakes.dart';
 
-/// Synthetic, test-only data shaped like a real week of Vivora use, with
+/// Synthetic, test-only data shaped like a real week of Personal Digital Twin use, with
 /// deliberately long names and large values to stress layouts.
 final DateTime fixtureNow = DateTime(2026, 10, 15, 16, 30);
 
@@ -87,7 +87,7 @@ final List<AppUsageEntry> fixtureApps = <AppUsageEntry>[
   ),
   app(
     'com.example.vivora',
-    'vivora',
+    'Personal Digital Twin',
     const Duration(minutes: 7),
     category: AppCategory.neutral,
   ),

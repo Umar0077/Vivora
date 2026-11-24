@@ -16,6 +16,8 @@ import '../../activity_monitoring/data/models/activity_date_utils.dart';
 import '../../activity_monitoring/data/models/app_usage_entry.dart';
 import '../../activity_monitoring/data/models/daily_activity_log.dart';
 import '../../activity_monitoring/data/repositories/activity_repository.dart';
+import '../../activity_monitoring/data/models/activity_sync_snapshot.dart';
+import '../../activity_monitoring/data/services/activity_sync_service.dart';
 import '../../analytics/data/analytics_calculator.dart';
 import '../../productivity_scoring/data/models/productivity_models.dart';
 import '../../productivity_scoring/data/services/productivity_repository.dart';
@@ -44,16 +46,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
   void initState() {
     super.initState();
     ProductivityRepository.revision.addListener(_onRevision);
+    // Automatic syncs update today's row without another Firestore read.
+    ActivitySyncService.instance.today.addListener(_onLiveToday);
     _loadReports();
   }
 
   @override
   void dispose() {
     ProductivityRepository.revision.removeListener(_onRevision);
+    ActivitySyncService.instance.today.removeListener(_onLiveToday);
     super.dispose();
   }
 
   void _onRevision() => unawaited(_loadReports());
+
+  void _onLiveToday() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _loadReports() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -89,7 +98,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return ReportsView(
       scores: _scores,
-      activity: _activity,
+      activity: withLiveDay(
+        _activity,
+        ActivitySyncService.instance.today.value,
+      ),
       loading: _loading,
       error: _error,
       showAppBar: widget.showAppBar,
@@ -342,4 +354,18 @@ class _SummaryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// [stored] with the day of [live] replaced by the latest on-device capture
+/// (the same values the next upload writes), so the list stays current.
+List<DailyActivityLog> withLiveDay(
+  List<DailyActivityLog> stored,
+  TodayActivity? live,
+) {
+  if (live == null) return stored;
+  final String key = ActivityDateUtils.dayKey(live.log.date);
+  return <DailyActivityLog>[
+    ...stored.where((l) => ActivityDateUtils.dayKey(l.date) != key),
+    live.log,
+  ]..sort((a, b) => a.date.compareTo(b.date));
 }

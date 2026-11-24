@@ -8,13 +8,24 @@ import '../../../core/widgets/app_bar_title.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../core/widgets/ui_kit.dart';
 import '../../activity_monitoring/data/services/activity_sync_service.dart';
+import '../../activity_monitoring/data/services/activity_tracking_controller.dart';
+import '../../activity_monitoring/presentation/widgets/activity_tracking_section.dart';
 import '../../activity_monitoring/presentation/widgets/tracking_status_card.dart';
+import '../../reminders/reminder_service.dart';
+import '../../reminders/reminders_section.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, this.themeController});
+  const SettingsScreen({
+    super.key,
+    this.themeController,
+    this.reminderService,
+    this.trackingController,
+  });
 
   /// Defaults to the app-wide controller; injectable for tests.
   final ThemeController? themeController;
+  final ReminderService? reminderService;
+  final ActivityTrackingController? trackingController;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +40,10 @@ class SettingsScreen extends StatelessWidget {
               controller: themeController ?? ThemeController.instance,
             ),
             const SizedBox(height: Space.xxl),
+            RemindersSection(service: reminderService),
+            const SizedBox(height: Space.xxl),
+            ActivityTrackingSection(tracking: trackingController),
+            const SizedBox(height: Space.xxl),
             Padding(
               padding: const EdgeInsets.only(left: Space.xs, bottom: Space.sm),
               child: Text(
@@ -39,7 +54,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            TrackingStatusCard(),
+            TrackingStatusCard(tracking: trackingController),
             const SizedBox(height: Space.xxl),
             SectionCard(
               title: 'PERMISSIONS & DATA',
@@ -69,10 +84,10 @@ class SettingsScreen extends StatelessWidget {
               children: <Widget>[
                 InfoRow(
                   icon: Icons.favorite_outline_rounded,
-                  title: 'About Vivora',
+                  title: 'About Personal Digital Twin',
                   onTap: () => showAboutDialog(
                     context: context,
-                    applicationName: 'Vivora',
+                    applicationName: 'Personal Digital Twin',
                     applicationLegalese:
                         'Student productivity monitoring. Usage data is read on this phone '
                         'with your permission and stored only in your own Firebase account records.',
@@ -98,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        title: const Text('Log out of Vivora?'),
+        title: const Text('Log out of Personal Digital Twin?'),
         content: const Text('Your data stays saved in your account.'),
         actions: <Widget>[
           TextButton(

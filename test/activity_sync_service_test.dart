@@ -39,7 +39,7 @@ void main() {
 
     expect(result.state, ActivitySyncState.partialData); // movement: noSamples
     expect(service.today.value!.log.appUsageMinutes, 45);
-    expect(service.today.value!.apps.first.appName, 'Vivora');
+    expect(service.today.value!.apps.first.appName, 'Personal Digital Twin');
     expect(service.cloudStatus.value.state, CloudSyncState.synced);
     expect(cloud.writes, 1);
   });

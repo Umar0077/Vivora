@@ -2,7 +2,7 @@ class DummyData {
   const DummyData._();
 
   static const String userName = 'Max';
-  static const String userEmail = 'max.student@vivora.app';
+  static const String userEmail = 'max.student@example.com';
   static const String joinedDate = 'Joined Aug 2025';
   static const String productivityScore = '82%';
   static const String screenTime = '4h 20m';

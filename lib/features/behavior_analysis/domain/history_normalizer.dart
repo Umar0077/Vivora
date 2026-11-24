@@ -225,6 +225,17 @@ class HistoryNormalizer {
       // App usage is the union of foreground apps, which can only exceed
       // unlocked screen time by small amounts (apps shown over the lock
       // screen, rounding). A large excess means one source is wrong.
+      // Tracking was switched off for part of this (finished) day: its totals
+      // cover only the tracked part, so using them would read the paused
+      // period as zero phone use. Treated as not measured.
+      if (log.isPartiallyTracked && entry.key != todayKey) {
+        drop('partial_tracking');
+        warnings.add(
+          'Measured data for ${entry.key} was not used: Automatic Activity '
+          'Tracking was off for part of that day.',
+        );
+        continue;
+      }
       if (app != null && unlocked != null && app > unlocked * 1.15 + 15) {
         drop('conflicting_sources');
         warnings.add(

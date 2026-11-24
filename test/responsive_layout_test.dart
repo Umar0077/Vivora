@@ -90,7 +90,7 @@ void main() {
       errors.where((d) => d.exceptionAsString().contains('overflowed')),
       isEmpty,
     );
-    expect(find.textContaining('Vivora (22m)'), findsOneWidget);
+    expect(find.textContaining('Personal Digital Twin (22m)'), findsOneWidget);
     expect(find.text('45m'), findsOneWidget); // app usage, not screen-on time
   });
 

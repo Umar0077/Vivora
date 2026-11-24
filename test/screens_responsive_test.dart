@@ -498,7 +498,13 @@ void main() {
       (t) => expectResponsive(
         t,
         () => const MainNavigationScreen(
-          tabs: <Widget>[SizedBox(), SizedBox(), SizedBox(), SizedBox()],
+          tabs: <Widget>[
+            SizedBox(),
+            SizedBox(),
+            SizedBox(),
+            SizedBox(),
+            SizedBox(),
+          ],
         ),
         heights: const <double>[640],
       ),

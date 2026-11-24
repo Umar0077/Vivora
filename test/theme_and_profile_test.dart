@@ -334,7 +334,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Log out'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Log out of Vivora?'), findsOneWidget);
+      expect(find.text('Log out of Personal Digital Twin?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(signOuts, 0);

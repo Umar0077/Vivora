@@ -42,6 +42,9 @@ class DailyActivityLog {
     this.source = 'android_usage_events',
     this.syncStatus = ActivitySyncState.idle,
     this.updatedAt,
+    this.trackedMinutes,
+    this.trackingComplete,
+    this.trackedRanges,
   });
 
   /// Local midnight of the day this log describes.
@@ -81,6 +84,22 @@ class DailyActivityLog {
   final String source;
   final ActivitySyncState syncStatus;
   final DateTime? updatedAt;
+
+  /// Minutes of this day during which Automatic Activity Tracking was on
+  /// (up to [lastSyncAt] for today). Null for records from builds before the
+  /// switch existed, which measured the whole day.
+  final int? trackedMinutes;
+
+  /// False when tracking was off for part of the day: the totals then cover
+  /// only the tracked part and must not be read as a full day (or as zero
+  /// use during the paused part). Null = whole day (older records).
+  final bool? trackingComplete;
+
+  /// The measured periods of the day.
+  final List<(DateTime, DateTime)>? trackedRanges;
+
+  /// Only part of the day was measured because tracking was paused.
+  bool get isPartiallyTracked => trackingComplete == false;
 
   String get documentId => ActivityDateUtils.documentIdFor(date);
 
@@ -140,6 +159,16 @@ class DailyActivityLog {
       'notificationPermissionGranted': notificationPermissionGranted,
       'source': source,
       'syncStatus': syncStatus.name,
+      'trackedMinutes': trackedMinutes,
+      'trackingComplete': trackingComplete,
+      'trackedRanges': trackedRanges
+          ?.map(
+            ((DateTime, DateTime) r) => <String, int>{
+              's': r.$1.millisecondsSinceEpoch,
+              'e': r.$2.millisecondsSinceEpoch,
+            },
+          )
+          .toList(),
     };
   }
 
@@ -190,7 +219,22 @@ class DailyActivityLog {
       source: map['source']?.toString() ?? 'android_usage_events',
       syncStatus: _syncStateFromValue(map['syncStatus']),
       updatedAt: _asDateTime(map['updatedAt']),
+      trackedMinutes: _asInt(map['trackedMinutes']),
+      trackingComplete: map['trackingComplete'] as bool?,
+      trackedRanges: _parseRanges(map['trackedRanges']),
     );
+  }
+
+  static List<(DateTime, DateTime)>? _parseRanges(dynamic raw) {
+    if (raw is! List) return null;
+    return <(DateTime, DateTime)>[
+      for (final dynamic r in raw)
+        if (r is Map && r['s'] is int && r['e'] is int)
+          (
+            DateTime.fromMillisecondsSinceEpoch(r['s'] as int),
+            DateTime.fromMillisecondsSinceEpoch(r['e'] as int),
+          ),
+    ];
   }
 
   static List<AppUsageEntry>? _parseAppSummary(dynamic raw) {

@@ -335,7 +335,7 @@ void main() {
     ) async {
       const rows = <(String, String, String)>[
         ('WhatsApp', 'Neutral', '13m'),
-        ('vivora', 'Neutral', '7m'),
+        ('Personal Digital Twin', 'Neutral', '7m'),
         ('Gallery', 'Neutral', '2m'),
         ('Security', 'Uncategorized', '<1m'),
         (

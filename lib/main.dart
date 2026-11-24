@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
-import 'features/activity_monitoring/data/services/activity_sync_service.dart';
+import 'background_sync_entrypoint.dart';
+import 'features/activity_monitoring/data/services/auto_sync_coordinator.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -23,7 +26,60 @@ void main() async {
       onError: (Object e) => debugPrint('Error initializing Firebase: $e'),
     ),
   ]);
+  if (Firebase.apps.isEmpty) {
+    runApp(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeController.instance.value,
+        home: Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      'Personal Digital Twin could not initialize Firebase. Check your connection and app configuration, then retry.',
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: main,
+                      child: const Text('Retry startup'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+  await _activateAppCheck();
   runApp(const VivoraApp());
+}
+
+/// App Check remains enabled for existing Firebase services. Direct Gemini
+/// requests use their own API key. Debug builds use the debug provider and print a debug
+/// token in logcat ("Enter this debug secret into the allow list ...") that
+/// must be registered in Firebase console > App Check > Manage debug tokens.
+/// Release builds use Play Integrity (requires the app's SHA-256 fingerprint
+/// in the Firebase project). It only affects services where App Check is
+/// enforced in the console.
+Future<void> _activateAppCheck() async {
+  if (Firebase.apps.isEmpty) return;
+  try {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? const AndroidDebugProvider()
+          : const AndroidPlayIntegrityProvider(),
+    );
+  } catch (e) {
+    debugPrint('App Check not active: $e');
+  }
 }
 
 class VivoraApp extends StatefulWidget {
@@ -34,7 +90,7 @@ class VivoraApp extends StatefulWidget {
 }
 
 class _VivoraAppState extends State<VivoraApp> with WidgetsBindingObserver {
-  final ActivitySyncService _activitySyncService = ActivitySyncService.instance;
+  final AutoSyncCoordinator _autoSync = AutoSyncCoordinator.instance;
   StreamSubscription<User?>? _authSubscription;
 
   @override
@@ -42,16 +98,12 @@ class _VivoraAppState extends State<VivoraApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (Firebase.apps.isNotEmpty) {
-      // Sync whenever a user signs in, and drop the previous user's in-memory
-      // data on sign-out or account switch.
-      _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
-        User? user,
-      ) {
-        _activitySyncService.onUserChanged(user?.uid);
-        if (user != null) {
-          unawaited(_activitySyncService.syncIfNeeded());
-        }
-      });
+      // Automatic activity sync follows the signed-in account: it starts on
+      // sign-in (every 5 minutes while the app is open, WorkManager in the
+      // background) and stops on sign-out, dropping the previous user's data.
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen(
+        (User? user) => unawaited(_autoSync.handleUser(user?.uid)),
+      );
     }
   }
 
@@ -64,11 +116,9 @@ class _VivoraAppState extends State<VivoraApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Returning from Usage Access settings or another app: re-read permissions
-    // and recapture (throttled, so quick app switches do not re-query).
-    if (state == AppLifecycleState.resumed && Firebase.apps.isNotEmpty) {
-      unawaited(_activitySyncService.syncIfNeeded());
-    }
+    // Pauses the 5-minute timer in the background and catches up on resume
+    // (also right after Usage Access is granted in Android settings).
+    if (Firebase.apps.isNotEmpty) _autoSync.handleLifecycle(state);
   }
 
   @override
@@ -83,7 +133,7 @@ class _VivoraAppState extends State<VivoraApp> with WidgetsBindingObserver {
             .accessibilityFeatures
             .disableAnimations;
         return MaterialApp(
-          title: 'Vivora',
+          title: 'Personal Digital Twin',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
@@ -100,3 +150,8 @@ class _VivoraAppState extends State<VivoraApp> with WidgetsBindingObserver {
     );
   }
 }
+
+/// Entry point run by Android's WorkManager job (`BackgroundSyncWorker.kt`)
+/// in a headless Flutter engine while the app is in the background.
+@pragma('vm:entry-point')
+Future<void> backgroundSyncMain() => runBackgroundSync();

@@ -114,13 +114,10 @@ class ScoreComponent {
   final String key;
   final String label;
 
-  /// Fraction of the overall score, e.g. 0.30.
   final double weight;
 
-  /// 0-100, or null when the input or goal needed for it is missing.
   final double? score;
 
-  /// Why the score is what it is (or why it is missing).
   final String detail;
 
   bool get isAvailable => score != null;
@@ -135,14 +132,12 @@ class ProductivityScoreResult {
     required this.suggestions,
   });
 
-  /// 0-100 over the available components, or null when none is available.
   final double? overallScore;
   final List<ScoreComponent> components;
   final String performanceLevel;
   final String feedbackMessage;
   final List<String> suggestions;
 
-  /// Sum of the weights that contributed (1.0 = every component recorded).
   double get coverage => components
       .where((ScoreComponent c) => c.isAvailable)
       .fold<double>(0, (double sum, ScoreComponent c) => sum + c.weight);

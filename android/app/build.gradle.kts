@@ -16,10 +16,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.vivora"
@@ -41,6 +37,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
 flutter {
     source = "../.."
 }
@@ -56,6 +58,8 @@ dependencies {
   // When using the BoM, don't specify versions in Firebase dependencies
   implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // Periodic background activity sync (BackgroundSyncWorker).
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
 
   // Add the dependencies for any other desired Firebase products

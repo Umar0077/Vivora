@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../features/ai_assistant/presentation/ai_assistant_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/auth/presentation/auth_screen.dart';
 import '../../features/badges/presentation/badges_screen.dart';
@@ -38,9 +39,15 @@ class AppRoutes {
   static const String reportDetail = '/reportDetail';
   static const String firstTimeSetup = '/firstTimeSetup';
   static const String dailyProductivityEntry = '/dailyProductivityEntry';
+  static const String aiAssistant = '/aiAssistant';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case aiAssistant:
+        return RouteTransitions.slide(
+          page: const AiAssistantScreen(showAppBar: true),
+          settings: settings,
+        );
       case dailyProductivityEntry:
         return RouteTransitions.slide(
           page: const DailyProductivityEntryScreen(),

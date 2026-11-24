@@ -9,4 +9,7 @@ enum ActivitySyncState {
   /// Collected, but some optional source (e.g. movement) is unavailable.
   partialData,
   failed,
+
+  /// The user switched Automatic Activity Tracking off: nothing is measured.
+  trackingOff,
 }

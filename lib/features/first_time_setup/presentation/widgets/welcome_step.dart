@@ -36,7 +36,7 @@ class WelcomeStep extends StatelessWidget {
             FadeInUp(
               duration: const Duration(milliseconds: 600),
               child: Text(
-                'Let’s Personalize Your Vivora Experience',
+                'Let’s Personalize Your Personal Digital Twin Experience',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w800,

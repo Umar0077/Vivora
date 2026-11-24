@@ -1,16 +1,24 @@
-# vivora
+# Personal Digital Twin
 
-A new Flutter project.
+Personal Digital Twin helps students understand their activity, recognize behavior patterns, track productivity, manage goals, review reports, and get contextual AI assistance.
 
-## Getting Started
+The app supports Light and Dark Mode. Its original blue, teal, purple, and green symbol is preserved; the interface and launch experience use the Personal Digital Twin name.
 
-This project is a starting point for a Flutter application.
+## Development
 
-A few resources to get you started if this is your first Flutter project:
+Run `flutter pub get`, then `flutter run` with the existing Firebase configuration.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Verify changes with:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+flutter analyze
+flutter test
+flutter build apk --debug
+flutter build apk --release
+```
+
+The Dart package name, Android application ID, Firebase project, storage paths, and platform channels retain their existing internal identifiers for compatibility. The public product name is Personal Digital Twin.
+
+For local AI testing, replace the placeholder on line 4 of the included `lib/core/config/gemini_config.dart` with your Google AI Studio key. This configuration file is tracked: never commit your real key. Fully restart the app after saving. Do not share or commit builds containing a real key. No ENV file, Dart define, Firebase AI Logic, or backend is needed for Gemini.
+
+See [current Gemini testing setup](GEMINI_TESTING.md), [historical AI integration handover](AI_DELIVERY_REPORT.md) and [branding verification](BRANDING_REPORT.md).

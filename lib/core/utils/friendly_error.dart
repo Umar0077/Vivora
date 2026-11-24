@@ -17,7 +17,7 @@ String friendlyError(Object error, {String action = 'complete that'}) {
       case 'network-request-failed':
         return 'You appear to be offline. Please check your connection and try again.';
       case 'permission-denied':
-        return 'Vivora is not allowed to access this data. Please sign in again.';
+        return 'Personal Digital Twin is not allowed to access this data. Please sign in again.';
       case 'unauthenticated':
         return 'Your session has expired. Please sign in again.';
       case 'not-found':

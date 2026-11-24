@@ -16,6 +16,7 @@ import 'package:vivora/features/focus_mode/data/focus_session_repository.dart';
 import 'package:vivora/features/productivity_scoring/data/models/productivity_models.dart';
 import 'package:vivora/features/productivity_scoring/data/services/productivity_repository.dart';
 import 'package:vivora/features/productivity_scoring/data/services/productivity_score_service.dart';
+import 'package:vivora/features/reminders/reminder_service.dart';
 
 /// Records today's inputs. Every metric starts as "not recorded" unless it can
 /// be prefilled from real data (today's saved log, Android usage, Focus Mode).
@@ -149,6 +150,8 @@ class _DailyProductivityEntryScreenState
         log: log,
         result: result,
       );
+      // Today is logged: no log reminder until tomorrow.
+      ReminderService.instance.onLoggedToday().ignore();
       if (!mounted) {
         return;
       }

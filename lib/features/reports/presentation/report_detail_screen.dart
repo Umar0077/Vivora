@@ -68,11 +68,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       final apps = activity == null
           ? const <AppUsageEntry>[]
           : await _activityRepository
-                .getDailyAppUsage(
-                  uid: user.uid,
-                  date: date,
-                  captureId: activity.captureId,
-                )
+                .getDailyApps(uid: user.uid, log: activity)
                 .timeout(const Duration(seconds: 10));
       if (!mounted) return;
       setState(() {

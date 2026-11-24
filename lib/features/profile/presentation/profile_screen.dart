@@ -110,7 +110,7 @@ class ProfileView extends StatelessWidget {
                   icon: Icons.person_add_alt_1_rounded,
                   title: 'Complete your profile',
                   message:
-                      'Add your name and study details so Vivora can personalise your goals.',
+                      'Add your name and study details so Personal Digital Twin can personalise your goals.',
                   actionLabel: 'Edit profile',
                   onAction: () =>
                       Navigator.of(context).pushNamed(AppRoutes.editProfile),
@@ -253,7 +253,7 @@ class ProfileView extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        title: const Text('Log out of Vivora?'),
+        title: const Text('Log out of Personal Digital Twin?'),
         content: const Text(
           'Your data stays saved in your account. You can sign in again at any time.',
         ),

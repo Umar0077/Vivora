@@ -56,11 +56,18 @@ Future<List<String>> layoutIssues(
         home: build(),
       ),
     );
-    // Let entrance animations (animate_do) and delayed loads finish.
+    // Let entrance animations (animate_do) and delayed loads finish. The
+    // extra frames matter: a widget whose fade-in has not started yet has
+    // opacity 0, is never painted, and so never reports an overflow (which
+    // Flutter detects at paint time). Earlier versions of this harness missed
+    // overflows inside delayed FadeIn* widgets for that reason.
     await tester.pump(settle);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
     if (interact != null) {
       await interact(tester);
       await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 100));
     }
   } finally {
     FlutterError.onError = previous;

@@ -162,51 +162,67 @@ class _SplashScreenState extends State<SplashScreen>
               _continuousController,
             ]),
             builder: (context, child) {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Pulsing Glow behind the logo
-                  Transform.scale(
-                    scale: _glowScale.value,
-                    child: Opacity(
-                      opacity: (_glowOpacity.value * _logoFade.value).clamp(
-                        0.0,
-                        1.0,
-                      ),
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: context.brand.withValues(alpha: 0.3),
-                              blurRadius: 40,
-                              spreadRadius: 20,
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Pulsing Glow behind the logo
+                        Transform.scale(
+                          scale: _glowScale.value,
+                          child: Opacity(
+                            opacity: (_glowOpacity.value * _logoFade.value)
+                                .clamp(0.0, 1.0),
+                            child: Container(
+                              width: 140,
+                              height: 140,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: context.brand.withValues(alpha: 0.3),
+                                    blurRadius: 40,
+                                    spreadRadius: 20,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
 
-                  // Logo with entrance and floating animations
-                  Transform.translate(
-                    offset: Offset(0, _floatOffset.value),
-                    child: Opacity(
-                      opacity: _logoFade.value,
-                      child: Transform.scale(
-                        scale: _logoScale.value,
-                        child: Image.asset(
-                          AppAssets.logo,
-                          width: 160,
-                          height: 160,
-                          fit: BoxFit.contain,
+                        // Logo with entrance and floating animations
+                        Transform.translate(
+                          offset: Offset(0, _floatOffset.value),
+                          child: Opacity(
+                            opacity: _logoFade.value,
+                            child: Transform.scale(
+                              scale: _logoScale.value,
+                              child: Image.asset(
+                                AppAssets.logo,
+                                width: 160,
+                                height: 160,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                    Text(
+                      'Personal Digital Twin',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
               );
             },
           ),

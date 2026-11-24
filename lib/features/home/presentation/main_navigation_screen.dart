@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ai_assistant/presentation/ai_assistant_screen.dart';
 import '../../analytics/presentation/analytics_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -8,7 +9,7 @@ import '../../reports/presentation/reports_screen.dart';
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key, this.tabs});
 
-  /// Overrides the four tab pages (used by layout tests).
+  /// Overrides the five tab pages (used by layout tests).
   final List<Widget>? tabs;
 
   @override
@@ -22,6 +23,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     DashboardScreen(),
     AnalyticsScreen(),
     ReportsScreen(),
+    AiAssistantScreen(),
     ProfileScreen(),
   ];
 
@@ -67,18 +69,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     'Home',
     'Analytics',
     'Reports',
+    'Assistant',
     'Profile',
   ];
   static const List<IconData> _selectedIcons = <IconData>[
     Icons.dashboard_rounded,
     Icons.insights_rounded,
     Icons.description_rounded,
+    Icons.auto_awesome_rounded,
     Icons.person_rounded,
   ];
   static const List<IconData> _icons = <IconData>[
     Icons.dashboard_outlined,
     Icons.insights_outlined,
     Icons.description_outlined,
+    Icons.auto_awesome_outlined,
     Icons.person_outline_rounded,
   ];
 }

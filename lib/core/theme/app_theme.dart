@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 import 'vivora_palette.dart';
@@ -22,9 +21,11 @@ class AppTheme {
 
   static ThemeData _build(Brightness brightness, VivoraPalette p) {
     final bool dark = brightness == Brightness.dark;
-    final TextTheme base = GoogleFonts.plusJakartaSansTextTheme(
-      dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
-    );
+    // Bundled font: first launch and offline mode must not fetch Google Fonts.
+    final TextTheme base =
+        (dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme).apply(
+          fontFamily: 'PlusJakartaSans',
+        );
     // Slightly lighter brand blue on dark surfaces for contrast.
     // Brand blue tuned per theme so it meets WCAG AA as text: #3D6AF0 on
     // white (4.6:1) and #7B9DFF on dark navy (6.2:1).

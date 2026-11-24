@@ -32,7 +32,7 @@ class AuthHeader extends StatelessWidget {
         ),
         const SizedBox(height: 26),
         Text(
-          'Welcome to Vivora',
+          'Welcome to Personal Digital Twin',
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),

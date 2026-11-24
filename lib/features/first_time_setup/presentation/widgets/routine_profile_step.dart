@@ -242,17 +242,21 @@ class _RoutineProfileStepState extends State<RoutineProfileStep> {
   }
 
   Widget _buildSliderLabel(String label, String value) {
+    // The label wraps instead of pushing the value off screen with large text.
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: context.palette.textPrimary,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: context.palette.textPrimary,
+            ),
           ),
         ),
+        const SizedBox(width: 12),
         Text(
           value,
           style: TextStyle(

@@ -137,21 +137,22 @@ class SetupSummaryStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: context.palette.textPrimary,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: context.palette.textPrimary,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 IconButton(
+                  tooltip: 'Edit ',
                   icon: Icon(Icons.edit_note_rounded, color: context.brand),
                   onPressed: onEdit,
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
                 ),
               ],
             ),
@@ -159,22 +160,35 @@ class SetupSummaryStep extends StatelessWidget {
             ...items.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
+                // Label and value share the width and wrap onto more lines when
+                // the text is long or the font is large (nothing is cut off).
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item['label']!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.palette.textSecondary,
+                    Flexible(
+                      flex: 2,
+                      fit: FlexFit.tight,
+                      child: Text(
+                        item['label']!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.palette.textSecondary,
+                        ),
                       ),
                     ),
-                    Text(
-                      item['value']!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: context.palette.textPrimary,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        item['value']!.trim().isEmpty
+                            ? 'Not set'
+                            : item['value']!,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: context.palette.textPrimary,
+                        ),
                       ),
                     ),
                   ],

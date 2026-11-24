@@ -1,6 +1,6 @@
 {
-    "name": "vivora",
-    "short_name": "vivora",
+    "name": "Personal Digital Twin",
+    "short_name": "Personal Digital Twin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

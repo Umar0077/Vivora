@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launch screen while the device is in dark mode: Vivora's dark background
-     (#0E1424) instead of white, so there is no white flash before Flutter
-     draws its first frame. -->
+<!-- Personal Digital Twin: original brand symbol, theme-matched launch background. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <color android:color="#FF0E1424" />
+    <item><color android:color="#FF0E1424" /></item>
+    <item android:width="120dp" android:height="120dp" android:gravity="center">
+        <bitmap android:src="@drawable/brand_symbol" android:gravity="fill" />
     </item>
 </layer-list>

@@ -54,11 +54,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
     unawaited(_loadName(user));
+    if (!forceSync) {
+      // Device activity is synced automatically by AutoSyncCoordinator; the
+      // Home screen only needs the shared history.
+      await _insights.ensureLoaded();
+      return;
+    }
+    // Pull-to-refresh: capture now instead of waiting for the next tick.
     await Future.wait<Object?>(<Future<Object?>>[
-      forceSync
-          ? _activityService.syncNow(force: true)
-          : _activityService.syncIfNeeded(),
-      forceSync ? _insights.reload() : _insights.ensureLoaded(),
+      _activityService.syncNow(force: true),
+      _insights.reload(),
     ]);
   }
 

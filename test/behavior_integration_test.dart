@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vivora/features/analytics/presentation/analytics_screen.dart';
 import 'package:vivora/features/activity_monitoring/data/models/app_usage_entry.dart';
+import 'package:vivora/features/activity_monitoring/data/models/activity_sync_snapshot.dart';
+import 'package:vivora/features/activity_monitoring/data/models/daily_activity_log.dart';
 import 'package:vivora/features/behavior_analysis/domain/behavior_analysis_engine.dart';
 import 'package:vivora/features/behavior_analysis/domain/behavior_models.dart';
 import 'package:vivora/features/behavior_analysis/presentation/behavior_insights_section.dart';
@@ -80,6 +82,36 @@ void main() {
   });
 
   tearDown(() => users.close());
+
+  for (final fromCapture in [false, true]) {
+    test(
+      'midnight shifts cached history and analysis windows: capture=$fromCapture',
+      () async {
+        var now = bNow;
+        final live = ValueNotifier<TodayActivity?>(null);
+        final service = InsightsService(
+          source: source,
+          currentUserId: () => uid,
+          clock: () => now,
+          liveToday: live,
+        );
+        await service.ensureLoaded();
+        now = now.add(const Duration(days: 1));
+        if (fromCapture) {
+          live.value = TodayActivity(
+            log: DailyActivityLog(date: now, appUsageMinutes: 5),
+            apps: const [],
+          );
+          await Future<void>.delayed(Duration.zero);
+        }
+        await service.ensureLoaded();
+        expect(source.loads, 2);
+        expect(service.snapshot.value!.history.today.day, now.day);
+        expect(service.analysisFor(AnalysisPeriod.day)!.end.day, now.day);
+        live.dispose();
+      },
+    );
+  }
 
   test(
     'repository data reaches the engine and is cached (Scenario C)',
@@ -252,6 +284,10 @@ void main() {
           ),
           heights: const <double>[5000],
           interact: (tester) async {
+            await tester.ensureVisible(
+              find.text('What this analysis cannot tell'),
+            );
+            await tester.pumpAndSettle();
             await tester.tap(find.text('What this analysis cannot tell'));
             await tester.pump(const Duration(milliseconds: 400));
           },

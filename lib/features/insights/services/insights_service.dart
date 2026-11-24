@@ -49,6 +49,11 @@ abstract class BehaviorInsightsProvider {
   /// Loads (or reuses cached) history and returns every period's analysis.
   Future<Map<AnalysisPeriod, BehaviorAnalysis>?> ensureAnalyses();
 
+  /// Single-day analysis of an earlier [day] from the loaded history (same
+  /// engine, history cut at the end of that day). Null before the first load
+  /// or when [day] is outside the loaded window.
+  BehaviorAnalysis? analysisForDay(DateTime day);
+
   /// Notifies when any analysis changes.
   Listenable get changes;
 }
@@ -144,6 +149,24 @@ class InsightsService implements BehaviorInsightsProvider {
   Future<Map<AnalysisPeriod, BehaviorAnalysis>?> ensureAnalyses() async =>
       (await ensureLoaded())?.analyses;
 
+  @override
+  BehaviorAnalysis? analysisForDay(DateTime day) {
+    final InsightsSnapshot? current = snapshot.value;
+    if (current == null) return null;
+    final DateTime today = current.history.today;
+    if (ActivityDateUtils.isSameDay(day, today)) {
+      return current.analyses[AnalysisPeriod.day];
+    }
+    if (day.isAfter(today) || today.difference(day).inDays >= historyDays) {
+      return null;
+    }
+    return engine.analyze(
+      current.history.asOf(day),
+      AnalysisPeriod.day,
+      calculatedAt: _clock(),
+    );
+  }
+
   void _onUserChanged(String? uid) {
     if (uid != _uid) {
       _uid = uid;
@@ -154,6 +177,11 @@ class InsightsService implements BehaviorInsightsProvider {
 
   Future<InsightsSnapshot?> ensureLoaded() {
     _onUserChanged(_currentUserId());
+    final cached = snapshot.value;
+    if (cached != null &&
+        !ActivityDateUtils.isSameDay(cached.history.today, _clock())) {
+      _stale = true;
+    }
     if (!_stale && snapshot.value != null) {
       return Future<InsightsSnapshot?>.value(snapshot.value);
     }
@@ -175,6 +203,13 @@ class InsightsService implements BehaviorInsightsProvider {
     final InsightsSnapshot? current = snapshot.value;
     final TodayActivity? today = _liveToday?.value;
     if (current == null || today == null) {
+      return;
+    }
+    if (!ActivityDateUtils.isSameDay(current.history.today, _clock())) {
+      // A capture after midnight must shift every analysis window, not be
+      // inserted into yesterday's cached history and discarded as future data.
+      _stale = true;
+      unawaited(reload());
       return;
     }
     snapshot.value = _compose(
