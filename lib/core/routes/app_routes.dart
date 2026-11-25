@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../features/admin/presentation/admin_login_screen.dart';
+import '../../features/admin/presentation/admin_portal_screen.dart';
 
 import '../../features/ai_assistant/presentation/ai_assistant_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
@@ -23,6 +25,8 @@ class AppRoutes {
   const AppRoutes._();
 
   static const String splash = '/';
+  static const String adminLogin = '/adminLogin';
+  static const String adminPortal = '/adminPortal';
   static const String onboarding = '/onboarding';
   static const String auth = '/auth';
   static const String mainNavigation = '/mainNavigation';
@@ -43,6 +47,16 @@ class AppRoutes {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case adminLogin:
+        return RouteTransitions.slide(
+          page: const AdminLoginScreen(),
+          settings: settings,
+        );
+      case adminPortal:
+        return RouteTransitions.fade(
+          page: const AdminPortalScreen(),
+          settings: settings,
+        );
       case aiAssistant:
         return RouteTransitions.slide(
           page: const AiAssistantScreen(showAppBar: true),

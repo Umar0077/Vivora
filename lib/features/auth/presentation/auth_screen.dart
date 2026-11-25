@@ -105,6 +105,13 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.adminLogin),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('Login as Admin'),
+                ),
               ],
             ),
           ),

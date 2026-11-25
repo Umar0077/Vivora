@@ -1,16 +1,44 @@
 rules_version = '2';
 
-// Vivora: every record lives under users/{uid}. A signed-in user can read and
-// write only their own document and its subcollections (activityLogs and
-// appUsage, dailyLogs, focusSessions, insights, badges, settings).
-// Everything else is denied.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function administrator() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admin/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/admin/$(request.auth.uid)).data.isActive == true
+        && get(/databases/$(database)/documents/admin/$(request.auth.uid)).data.keys()
+          .hasOnly(['email', 'role', 'isActive']);
+    }
+    // Provision with a trusted console/SDK only. Migrate legacy credentials first.
+    match /admin/{uid} {
+      allow get: if owner(uid) && resource.data.keys()
+        .hasOnly(['email', 'role', 'isActive']);
+      allow list, create, update, delete: if false;
+    }
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if owner(uid) || administrator();
+      allow write: if owner(uid);
 
       match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if owner(uid);
+      }
+      // Explicit read allowlist. Private aiChat is deliberately excluded.
+      match /{collection}/{id} {
+        allow read: if administrator() && collection in [
+          'activityLogs', 'dailyLogs', 'focusSessions', 'insights',
+          'aiRecommendations', 'aiSummaries'
+        ];
+      }
+      match /settings/{id} {
+        allow read: if administrator() && id in ['activityTracking', 'appCategories'];
+      }
+      match /aiState/{id} {
+        allow read: if administrator() && id in ['advice', 'studyPlan'];
+      }
+      match /activityLogs/{day}/appUsage/{app} {
+        allow read: if administrator();
       }
     }
 

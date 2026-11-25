@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../admin/data/admin_session.dart';
 import 'package:vivora/core/theme/vivora_palette.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -102,6 +103,20 @@ class _SplashScreenState extends State<SplashScreen>
     _navigationTimer = Timer(const Duration(milliseconds: 3000), () async {
       if (!mounted) return;
 
+      // Restore the isolated administrator session through the guarded portal.
+      try {
+        final admin = await AdminSession.instance().timeout(
+          const Duration(seconds: 5),
+        );
+        if (!mounted) return;
+        if (admin.auth.currentUser != null) {
+          Navigator.of(context).pushReplacementNamed(AppRoutes.adminPortal);
+          return;
+        }
+      } catch (_) {
+        /* Normal user startup remains available. */
+      }
+      if (!mounted) return;
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
